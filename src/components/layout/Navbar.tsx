@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useRef, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Users, BookOpen, ClipboardList, User, LogOut } from 'lucide-react';
 import AuthContext from '../../context/AuthContext';
@@ -6,10 +6,31 @@ import AuthContext from '../../context/AuthContext';
 const Navbar: React.FC = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  // Handle clicks outside the dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Toggle dropdown visibility
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
   };
 
   return (
@@ -40,15 +61,19 @@ const Navbar: React.FC = () => {
                   </Link>
                 )}
 
-                <div className="relative group">
-                  <button className="flex items-center hover:text-indigo-200 transition">
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    className="flex items-center hover:text-indigo-200 transition"
+                    onClick={toggleDropdown}
+                  >
                     <User className="mr-1" size={18} />
                     <span>{user.name.split(' ')[0]}</span>
                   </button>
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
+                  <div className={`absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 ${isDropdownOpen ? 'block' : 'hidden'}`}>
                     <Link
                       to="/profile"
                       className="block px-4 py-2 text-gray-800 hover:bg-indigo-100 transition"
+                      onClick={() => setIsDropdownOpen(false)}
                     >
                       Profile
                     </Link>
