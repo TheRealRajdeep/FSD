@@ -73,11 +73,11 @@ const EvaluationDetail: React.FC = () => {
         setLoading(true);
         const res = await axios.get(`/api/evaluations/${id}`);
         setEvaluation(res.data);
-        
+
         // Initialize scores and comments
         const initialScores: { [key: string]: number } = {};
         const initialComments: { [key: string]: string } = {};
-        
+
         res.data.rubricItems.forEach((item: RubricItem) => {
           if (user?.role === 'faculty') {
             initialScores[item._id] = item.facultyScore.value || 0;
@@ -87,7 +87,7 @@ const EvaluationDetail: React.FC = () => {
             initialComments[item._id] = item.reviewerScore.comments || '';
           }
         });
-        
+
         setScores(initialScores);
         setComments(initialComments);
         setLoading(false);
@@ -114,19 +114,19 @@ const EvaluationDetail: React.FC = () => {
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
-      
+
       const rubricScores = evaluation?.rubricItems.map(item => ({
         itemId: item._id,
         value: scores[item._id],
         comments: comments[item._id]
       }));
-      
+
       if (user?.role === 'faculty') {
         await axios.put(`/api/evaluations/${id}/faculty-score`, { rubricScores });
       } else if (user?.role === 'reviewer') {
         await axios.put(`/api/evaluations/${id}/reviewer-score`, { rubricScores });
       }
-      
+
       toast.success('Evaluation submitted successfully!');
       navigate('/evaluations');
     } catch (error: any) {
@@ -152,7 +152,7 @@ const EvaluationDetail: React.FC = () => {
 
     const excelBuffer = writeFile(wb, { bookType: 'xlsx', type: 'array' });
     const fileName = `evaluation-${evaluation._id}-${user?.role}.xlsx`;
-    
+
     saveAs(new Blob([excelBuffer]), fileName);
   };
 
@@ -198,7 +198,7 @@ const EvaluationDetail: React.FC = () => {
 
   const calculateTotalScore = (type: 'faculty' | 'reviewer') => {
     if (!evaluation) return 0;
-    
+
     return evaluation.rubricItems.reduce((total, item) => {
       const score = type === 'faculty' ? item.facultyScore.value : item.reviewerScore.value;
       return total + (score || 0);
@@ -207,7 +207,7 @@ const EvaluationDetail: React.FC = () => {
 
   const calculateMaxScore = () => {
     if (!evaluation) return 0;
-    
+
     return evaluation.rubricItems.reduce((total, item) => {
       return total + item.maxScore;
     }, 0);
@@ -253,19 +253,18 @@ const EvaluationDetail: React.FC = () => {
                 <p className="text-gray-600">{evaluation.project.title}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-3">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
-                evaluation.status === 'reviewer-evaluated' ? 'bg-purple-100 text-purple-800' :
-                'bg-green-100 text-green-800'
-              }`}>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
+                    evaluation.status === 'reviewer-evaluated' ? 'bg-purple-100 text-purple-800' :
+                      'bg-green-100 text-green-800'
+                }`}>
                 {evaluation.status.replace('-', ' ').toUpperCase()}
               </span>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white border border-gray-200 rounded-lg p-4">
               <div className="flex items-center mb-3">
@@ -275,7 +274,7 @@ const EvaluationDetail: React.FC = () => {
               <p className="font-medium mb-2">{evaluation.project.title}</p>
               <p className="text-gray-600 text-sm line-clamp-3">{evaluation.project.description}</p>
             </div>
-            
+
             <div className="bg-white border border-gray-200 rounded-lg p-4">
               <div className="flex items-center mb-3">
                 <Users className="h-5 w-5 text-indigo-600 mr-2" />
@@ -284,7 +283,7 @@ const EvaluationDetail: React.FC = () => {
               <p className="font-medium mb-2">{evaluation.team.name}</p>
               <p className="text-gray-600 text-sm">{evaluation.team.members.length} Members</p>
             </div>
-            
+
             <div className="bg-white border border-gray-200 rounded-lg p-4">
               <div className="flex items-center mb-3">
                 <Calendar className="h-5 w-5 text-indigo-600 mr-2" />
@@ -296,10 +295,10 @@ const EvaluationDetail: React.FC = () => {
               </p>
             </div>
           </div>
-          
+
           <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Evaluation Rubric</h3>
-            
+
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -427,7 +426,7 @@ const EvaluationDetail: React.FC = () => {
               </table>
             </div>
           </div>
-          
+
           <div className="flex justify-between items-center">
             <button
               onClick={() => navigate('/evaluations')}
@@ -435,7 +434,7 @@ const EvaluationDetail: React.FC = () => {
             >
               Back to Evaluations
             </button>
-            
+
             {(canSubmitFaculty || canSubmitReviewer) && (
               <button
                 onClick={handleSubmit}
@@ -459,43 +458,44 @@ const EvaluationDetail: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h3 className="text-xl font-bold mb-4">Excel-based Evaluation</h3>
-        
-        <div className="flex flex-col md:flex-row gap-4">
-          <button
-            onClick={downloadExcelTemplate}
-            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-          >
-            <Download className="w-5 h-5 mr-2" />
-            Download Excel Template
-          </button>
-          
-          <div className="relative">
-            <input
-              type="file"
-              accept=".xlsx"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="excel-upload"
-            />
-            <label
-              htmlFor="excel-upload"
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
+      {/* Excel-based Evaluation - Only visible to faculty */}
+      {user?.role === 'faculty' && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h3 className="text-xl font-bold mb-4">Excel-based Evaluation</h3>
+
+          <div className="flex flex-col md:flex-row gap-4">
+            <button
+              onClick={downloadExcelTemplate}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
             >
-              <Upload className="w-5 h-5 mr-2" />
-              Upload Filled Template
-            </label>
+              <Download className="w-5 h-5 mr-2" />
+              Download Excel Template
+            </button>
+
+            <div className="relative">
+              <input
+                type="file"
+                accept=".xlsx"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="excel-upload"
+              />
+              <label
+                htmlFor="excel-upload"
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
+              >
+                <Upload className="w-5 h-5 mr-2" />
+                Upload Filled Template
+              </label>
+            </div>
           </div>
+
+          <p className="mt-4 text-sm text-gray-600">
+            Note: Download the template, fill in your scores and comments, then upload the completed file.
+            As faculty, you can only modify faculty scores.
+          </p>
         </div>
-        
-        <p className="mt-4 text-sm text-gray-600">
-          Note: Download the template, fill in your scores and comments, then upload the completed file.
-          {user?.role === 'faculty' ? 
-            " As faculty, you can only modify faculty scores." : 
-            " As a reviewer, you can only modify reviewer scores."}
-        </p>
-      </div>
+      )}
     </div>
   );
 };
