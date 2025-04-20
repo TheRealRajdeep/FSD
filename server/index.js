@@ -18,7 +18,12 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:8080',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Connect to MongoDB
@@ -31,20 +36,26 @@ mongoose
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// Routes
+// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/evaluations", evaluationRoutes);
 app.use("/api/papers", paperRoutes);
 
-// Root route
-app.get("/", (req, res) => {
-  res.send("University Project Management API is running");
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// Handle React routing, return all requests to React app
+app.get('*', (req, res) => {
+  // Skip API routes
+  if (!req.url.startsWith('/api/')) {
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  }
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

@@ -1,5 +1,6 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
+import { createContext, useState, useEffect, ReactNode } from 'react';
+
 
 interface User {
   _id: string;
@@ -59,11 +60,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (identifier: string, password: string) => {
     try {
       setLoading(true);
-
       const { data } = await axios.post('/api/auth/login', { identifier, password });
-
       localStorage.setItem('user', JSON.stringify(data));
-
       setUser(data);
       setLoading(false);
     } catch (error: any) {
@@ -75,9 +73,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = async (userData: any) => {
     try {
       setLoading(true);
-      const res = await axios.post('/api/auth/register', userData);
-      setUser(res.data);
-      localStorage.setItem('user', JSON.stringify(res.data));
+      const { data } = await axios.post('/api/auth/register', userData);
+      setUser(data);
+      localStorage.setItem('user', JSON.stringify(data));
       setLoading(false);
     } catch (err: any) {
       setError(err.response?.data?.message || 'An error occurred during registration');
