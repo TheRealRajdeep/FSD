@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { utils, writeFile } from 'xlsx';
+import { utils, write, read } from 'xlsx';
 import { saveAs } from 'file-saver';
 import { ClipboardList, BookOpen, Users, Calendar, Check, X, Download, Upload } from 'lucide-react';
 import AuthContext from '../../context/AuthContext';
@@ -150,7 +150,7 @@ const EvaluationDetail: React.FC = () => {
     const wb = utils.book_new();
     utils.book_append_sheet(wb, ws, 'Evaluation');
 
-    const excelBuffer = writeFile(wb, { bookType: 'xlsx', type: 'array' });
+    const excelBuffer = write(wb, { bookType: 'xlsx', type: 'array' });
     const fileName = `evaluation-${evaluation._id}-${user?.role}.xlsx`;
 
     saveAs(new Blob([excelBuffer]), fileName);
@@ -164,7 +164,7 @@ const EvaluationDetail: React.FC = () => {
     reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = utils.read(data, { type: 'array' });
+        const workbook = read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows: ExcelRow[] = utils.sheet_to_json(worksheet);
 
@@ -256,9 +256,9 @@ const EvaluationDetail: React.FC = () => {
 
             <div className="flex items-center space-x-3">
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
-                    evaluation.status === 'reviewer-evaluated' ? 'bg-purple-100 text-purple-800' :
-                      'bg-green-100 text-green-800'
+                evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
+                  evaluation.status === 'reviewer-evaluated' ? 'bg-purple-100 text-purple-800' :
+                    'bg-green-100 text-green-800'
                 }`}>
                 {evaluation.status.replace('-', ' ').toUpperCase()}
               </span>
