@@ -190,7 +190,13 @@ router.get("/me", protect, async (req, res) => {
     // Fetch the user with populated team data
     const user = await User.findById(req.user._id)
       .select("-password")
-      .populate("team");
+      .populate({
+        path: "team",
+        populate: {
+          path: "project",
+          select: "title description status startDate endDate",
+        },
+      });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });

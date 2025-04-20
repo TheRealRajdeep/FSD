@@ -41,24 +41,25 @@ const Dashboard: React.FC = () => {
         // For students, fetch their team and project evaluations
         if (user?.role === 'student') {
           try {
-            // Get current user with latest team information
+            // Get current user with latest team information and project data
             const userResponse = await axios.get('/api/auth/me');
             const currentUser = userResponse.data;
 
             if (currentUser.team) {
-              // Get team details
-              const teamRes = await axios.get(`/api/teams/${currentUser.team._id}`);
-              setTeam(teamRes.data);
+              setTeam(currentUser.team);
 
-              // Check if team has a project
-              if (teamRes.data.project) {
-                const projectRes = await axios.get(`/api/projects/${teamRes.data.project}`);
-                setProject(projectRes.data);
+              // If the team has a project, set it directly from the populated data
+              if (currentUser.team.project) {
+                setProject(currentUser.team.project);
               }
 
               // Get evaluations for this team
-              const evalRes = await axios.get(`/api/evaluations/team/${currentUser.team._id}`);
-              setEvaluations(evalRes.data);
+              try {
+                const evalRes = await axios.get(`/api/evaluations/team/${currentUser.team._id}`);
+                setEvaluations(evalRes.data);
+              } catch (evalError) {
+                console.error('Error fetching evaluations:', evalError);
+              }
             }
           } catch (error) {
             console.error('Error fetching student data:', error);
