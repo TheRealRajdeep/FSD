@@ -8,6 +8,7 @@ import AuthContext from '../context/AuthContext';
 interface Team {
   _id: string;
   name: string;
+  leader: any;
   members: any[];
   project: any;
 }
@@ -36,40 +37,57 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // For students, fetch their team and project evaluations
-        if (user?.role === 'student' && user?.team) {
-          const teamRes = await axios.get(`/api/teams/${user.team}`);
-          setTeam(teamRes.data);
-          
-          if (teamRes.data.project) {
-            const projectRes = await axios.get(`/api/projects/${teamRes.data.project}`);
-            setProject(projectRes.data);
-            
-            // Get evaluations for this team
-            const evalRes = await axios.get(`/api/evaluations/team/${teamRes.data._id}`);
-            setEvaluations(evalRes.data);
+        if (user?.role === 'student') {
+          try {
+            // Get current user with latest team information
+            const userResponse = await axios.get('/api/auth/me');
+            const currentUser = userResponse.data;
+
+            if (currentUser.team) {
+              // Get team details
+              const teamRes = await axios.get(`/api/teams/${currentUser.team._id}`);
+              setTeam(teamRes.data);
+
+              // Check if team has a project
+              if (teamRes.data.project) {
+                const projectRes = await axios.get(`/api/projects/${teamRes.data.project}`);
+                setProject(projectRes.data);
+              }
+
+              // Get evaluations for this team
+              const evalRes = await axios.get(`/api/evaluations/team/${currentUser.team._id}`);
+              setEvaluations(evalRes.data);
+            }
+          } catch (error) {
+            console.error('Error fetching student data:', error);
           }
         }
-        
+
         // For faculty and reviewers, fetch pending evaluations
         if (['faculty', 'reviewer'].includes(user?.role || '')) {
-          const evalRes = await axios.get('/api/evaluations');
-          let filteredEvals = evalRes.data;
-          
-          if (user?.role === 'faculty') {
-            filteredEvals = filteredEvals.filter((evaluation: any) => 
-              !evaluation.facultySubmitted || evaluation.status === 'pending'
-            );
-          } else if (user?.role === 'reviewer') {
-            filteredEvals = filteredEvals.filter((evaluation: any) => 
-              !evaluation.reviewerSubmitted || evaluation.status === 'faculty-evaluated'
-            );
+          try {
+            const evalRes = await axios.get('/api/evaluations');
+            let filteredEvals = evalRes.data;
+
+            if (user?.role === 'faculty') {
+              filteredEvals = filteredEvals.filter((evaluation: any) =>
+                !evaluation.facultySubmitted || evaluation.status === 'pending'
+              );
+            } else if (user?.role === 'reviewer') {
+              filteredEvals = filteredEvals.filter((evaluation: any) =>
+                !evaluation.reviewerSubmitted || evaluation.status === 'faculty-evaluated'
+              );
+            }
+
+            setEvaluations(filteredEvals.slice(0, 5));
+          } catch (evalError) {
+            console.error('Error fetching evaluations:', evalError);
+            toast.error('Failed to load evaluations');
           }
-          
-          setEvaluations(filteredEvals.slice(0, 5));
         }
-        
+
         setLoading(false);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -77,7 +95,7 @@ const Dashboard: React.FC = () => {
         setLoading(false);
       }
     };
-    
+
     if (user) {
       fetchData();
     }
@@ -113,12 +131,12 @@ const Dashboard: React.FC = () => {
                 <Users className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Your Team</h2>
               </div>
-              
+
               {team ? (
                 <div>
                   <p className="font-medium text-lg mb-2">{team.name}</p>
-                  <p className="text-gray-600 mb-2">{team.members.length} Members</p>
-                  <Link 
+                  <p className="text-gray-600 mb-2">{team.members ? team.members.length : 0} Members</p>
+                  <Link
                     to={`/teams/${team._id}`}
                     className="text-indigo-600 hover:text-indigo-800 flex items-center mt-4"
                   >
@@ -130,13 +148,13 @@ const Dashboard: React.FC = () => {
                 <div>
                   <p className="text-gray-600 mb-4">You are not part of any team yet.</p>
                   <div className="flex space-x-4">
-                    <Link 
+                    <Link
                       to="/teams/create"
                       className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition"
                     >
                       Create Team
                     </Link>
-                    <Link 
+                    <Link
                       to="/teams"
                       className="border border-indigo-600 text-indigo-600 px-4 py-2 rounded-md hover:bg-indigo-50 transition"
                     >
@@ -146,25 +164,24 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center mb-4">
                 <BookOpen className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Your Project</h2>
               </div>
-              
+
               {project ? (
                 <div>
                   <p className="font-medium text-lg mb-2">{project.title}</p>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    project.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${project.status === 'planning' ? 'bg-blue-100 text-blue-800' :
                     project.status === 'in-progress' ? 'bg-yellow-100 text-yellow-800' :
-                    project.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    'bg-purple-100 text-purple-800'
-                  }`}>
+                      project.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        'bg-purple-100 text-purple-800'
+                    }`}>
                     {project.status.replace('-', ' ').toUpperCase()}
                   </span>
-                  <Link 
+                  <Link
                     to={`/projects/${project._id}`}
                     className="text-indigo-600 hover:text-indigo-800 flex items-center mt-4"
                   >
@@ -175,8 +192,8 @@ const Dashboard: React.FC = () => {
               ) : team ? (
                 <div>
                   <p className="text-gray-600 mb-4">Your team doesn't have a project yet.</p>
-                  {team.leader === user._id && (
-                    <Link 
+                  {team.leader && team.leader._id === user?._id && (
+                    <Link
                       to="/projects/create"
                       className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition"
                     >
@@ -188,13 +205,13 @@ const Dashboard: React.FC = () => {
                 <p className="text-gray-600">Join a team first to create or view projects.</p>
               )}
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center mb-4">
                 <ClipboardList className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Evaluations</h2>
               </div>
-              
+
               {evaluations.length > 0 ? (
                 <div>
                   <ul className="space-y-3">
@@ -204,14 +221,13 @@ const Dashboard: React.FC = () => {
                           {evaluation.evaluationType.charAt(0).toUpperCase() + evaluation.evaluationType.slice(1)} Evaluation
                         </p>
                         <div className="flex justify-between items-center mt-1">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                             evaluation.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
+                              'bg-blue-100 text-blue-800'
+                            }`}>
                             {evaluation.status.replace('-', ' ').toUpperCase()}
                           </span>
-                          <Link 
+                          <Link
                             to={`/evaluations/${evaluation._id}`}
                             className="text-indigo-600 hover:text-indigo-800 text-sm"
                           >
@@ -237,7 +253,7 @@ const Dashboard: React.FC = () => {
                 <ClipboardList className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Pending Evaluations</h2>
               </div>
-              
+
               {evaluations.length > 0 ? (
                 <div>
                   <ul className="space-y-3">
@@ -247,13 +263,12 @@ const Dashboard: React.FC = () => {
                           {evaluation.evaluationType.charAt(0).toUpperCase() + evaluation.evaluationType.slice(1)} Evaluation
                         </p>
                         <div className="flex justify-between items-center mt-1">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                             'bg-blue-100 text-blue-800'
-                          }`}>
+                            }`}>
                             {evaluation.status.replace('-', ' ').toUpperCase()}
                           </span>
-                          <Link 
+                          <Link
                             to={`/evaluations/${evaluation._id}`}
                             className="text-indigo-600 hover:text-indigo-800 text-sm"
                           >
@@ -263,8 +278,8 @@ const Dashboard: React.FC = () => {
                       </li>
                     ))}
                   </ul>
-                  
-                  <Link 
+
+                  <Link
                     to="/evaluations"
                     className="text-indigo-600 hover:text-indigo-800 flex items-center mt-4"
                   >
@@ -275,22 +290,22 @@ const Dashboard: React.FC = () => {
               ) : (
                 <p className="text-gray-600">No pending evaluations.</p>
               )}
-              
-              <Link 
+
+              <Link
                 to="/evaluations/create"
                 className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition mt-4 inline-block"
               >
                 Create New Evaluation
               </Link>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center mb-4">
                 <Users className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Teams</h2>
               </div>
-              
-              <Link 
+
+              <Link
                 to="/teams"
                 className="text-indigo-600 hover:text-indigo-800 flex items-center"
               >
@@ -298,13 +313,13 @@ const Dashboard: React.FC = () => {
                 <ChevronRight size={16} className="ml-1" />
               </Link>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center mb-4">
                 <Bell className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Notifications</h2>
               </div>
-              
+
               <p className="text-gray-600">No new notifications.</p>
             </div>
           </>
@@ -318,7 +333,7 @@ const Dashboard: React.FC = () => {
                 <ClipboardList className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Pending Reviews</h2>
               </div>
-              
+
               {evaluations.length > 0 ? (
                 <div>
                   <ul className="space-y-3">
@@ -328,13 +343,12 @@ const Dashboard: React.FC = () => {
                           {evaluation.evaluationType.charAt(0).toUpperCase() + evaluation.evaluationType.slice(1)} Evaluation
                         </p>
                         <div className="flex justify-between items-center mt-1">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
                             'bg-yellow-100 text-yellow-800'
-                          }`}>
+                            }`}>
                             {evaluation.status.replace('-', ' ').toUpperCase()}
                           </span>
-                          <Link 
+                          <Link
                             to={`/evaluations/${evaluation._id}`}
                             className="text-indigo-600 hover:text-indigo-800 text-sm"
                           >
@@ -344,8 +358,8 @@ const Dashboard: React.FC = () => {
                       </li>
                     ))}
                   </ul>
-                  
-                  <Link 
+
+                  <Link
                     to="/evaluations"
                     className="text-indigo-600 hover:text-indigo-800 flex items-center mt-4"
                   >
@@ -357,14 +371,14 @@ const Dashboard: React.FC = () => {
                 <p className="text-gray-600">No pending reviews.</p>
               )}
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center mb-4">
                 <BookOpen className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Projects</h2>
               </div>
-              
-              <Link 
+
+              <Link
                 to="/teams"
                 className="text-indigo-600 hover:text-indigo-800 flex items-center"
               >
@@ -372,13 +386,13 @@ const Dashboard: React.FC = () => {
                 <ChevronRight size={16} className="ml-1" />
               </Link>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center mb-4">
                 <Calendar className="text-indigo-600 mr-2" size={24} />
                 <h2 className="text-xl font-semibold">Upcoming Deadlines</h2>
               </div>
-              
+
               <p className="text-gray-600">No upcoming deadlines.</p>
             </div>
           </>

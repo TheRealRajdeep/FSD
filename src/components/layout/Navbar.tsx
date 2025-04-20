@@ -49,12 +49,6 @@ const Navbar: React.FC = () => {
                   Dashboard
                 </Link>
 
-                {user.role === 'student' && (
-                  <Link to="/teams" className="hover:text-indigo-200 transition">
-                    Teams
-                  </Link>
-                )}
-
                 {['faculty', 'reviewer'].includes(user.role) && (
                   <Link to="/evaluations" className="hover:text-indigo-200 transition">
                     Evaluations
