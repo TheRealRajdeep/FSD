@@ -65,7 +65,7 @@ const Register: React.FC = () => {
       setTimeout(() => {
         // Mock extracted skills - in a real app this would come from the backend
         const mockExtractedSkills = "JavaScript, React, Node.js, TypeScript";
-        setValue('skills', mockExtractedSkills);
+        // setValue('skills', mockExtractedSkills);
         toast.success('Skills extracted from resume');
         setUploading(false);
       }, 1500);
