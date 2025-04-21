@@ -11,7 +11,7 @@ const Home: React.FC = () => {
           <div className="flex flex-col md:flex-row items-center">
             <div className="md:w-1/2 mb-8 md:mb-0">
               <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-4">
-                Integrated Project Development Portal
+                Innovative Project Development Portal
               </h1>
               <p className="text-xl mb-8">
                 A comprehensive platform for university students to form teams, develop projects, and receive evaluations from faculty and industry reviewers.
