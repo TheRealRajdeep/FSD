@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import axios from 'axios';
 import { ClipboardList, Upload, File, X, Check, AlertCircle, Download, CheckSquare } from 'lucide-react';
 import AuthContext from '../../context/AuthContext';
+import * as XLSX from 'xlsx';
 
 interface ProjectResult {
     projectName: string;
@@ -116,52 +117,70 @@ const ExcelEvaluationCreate: React.FC = () => {
         setProjectResults([]);
     };
 
-    const downloadTemplate = async () => {
-        try {
-            const { utils, write } = await import('xlsx');
+    const downloadTemplate = () => {
+        const wb = XLSX.utils.book_new();
 
-            // Create template data with project info and criteria columns
-            const templateData = [
-                {
-                    ProjectName: 'Project Alpha',
-                    'Code Quality': '', // Empty column for faculty to enter scores (0-5)
-                    'Design': '',       // Empty column for faculty to enter scores (0-5)
-                    'Documentation': '', // Empty column for faculty to enter scores (0-5)
-                    'Presentation': '',  // Empty column for faculty to enter scores (0-5)
-                    'Innovation': ''     // Empty column for faculty to enter scores (0-5)
-                },
-                {
-                    ProjectName: 'Project Beta',
-                    'Code Quality': '',
-                    'Design': '',
-                    'Documentation': '',
-                    'Presentation': '',
-                    'Innovation': ''
-                }
-            ];
+        // Create sample data with the correct criterion names
+        const sampleData = [
+            {
+                "ProjectName": "Project A",
+                "Implementation Demonstration": "", // Max: 20
+                "Project Recognition": "",  // Max: 10
+                "Black Book Draft": "",     // Max: 5
+                "Presentation Quality": "", // Max: 5
+                "Contribution & Punctuality": "" // Max: 5
+            },
+            {
+                "ProjectName": "Project B",
+                "Implementation Demonstration": "",
+                "Project Recognition": "",
+                "Black Book Draft": "",
+                "Presentation Quality": "",
+                "Contribution & Punctuality": ""
+            }
+        ];
 
-            // Create worksheet
-            const ws = utils.json_to_sheet(templateData);
-            const wb = utils.book_new();
-            utils.book_append_sheet(wb, ws, 'Project Evaluations');
+        // Add the worksheet with sample data
+        const ws = XLSX.utils.json_to_sheet(sampleData);
 
-            // Generate and download file
-            const excelBuffer = write(wb, { bookType: 'xlsx', type: 'array' });
-            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        // Add comments to the header cells to indicate max scores
+        if (!ws['!cols']) ws['!cols'] = [];
 
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'project_evaluation_template.xlsx';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+        // Set column widths
+        ws['!cols'][0] = { width: 15 }; // ProjectName
+        ws['!cols'][1] = { width: 25 }; // Implementation Demonstration
+        ws['!cols'][2] = { width: 20 }; // Project Recognition
+        ws['!cols'][3] = { width: 15 }; // Black Book Draft
+        ws['!cols'][4] = { width: 15 }; // Presentation Quality
+        ws['!cols'][5] = { width: 25 }; // Contribution & Punctuality
 
-        } catch (error) {
-            console.error('Error generating template:', error);
-            toast.error('Failed to download template');
-        }
+        // Add the worksheet to the workbook
+        XLSX.utils.book_append_sheet(wb, ws, "Evaluation Template");
+
+        // Create an additional info sheet
+        const infoData = [
+            ["Criterion", "Max Score", "Description", "Faculty Max", "Reviewer Max"],
+            ["Implementation Demonstration", 20, "Evaluate the technical implementation of the project", 20, 20],
+            ["Project Recognition", 10, "Assess the project's impact and recognition", 10, 10],
+            ["Black Book Draft", 5, "Quality of documentation", 5, 5],
+            ["Presentation Quality", 5, "Quality of project presentation", 5, 5],
+            ["Contribution & Punctuality", 5, "Team member's contribution and timeliness", 5, 5]
+        ];
+
+        const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+
+        // Set column widths for the info sheet
+        if (!infoWs['!cols']) infoWs['!cols'] = [];
+        infoWs['!cols'][0] = { width: 25 }; // Criterion
+        infoWs['!cols'][1] = { width: 10 }; // Max Score
+        infoWs['!cols'][2] = { width: 40 }; // Description
+        infoWs['!cols'][3] = { width: 12 }; // Faculty Max
+        infoWs['!cols'][4] = { width: 12 }; // Reviewer Max
+
+        XLSX.utils.book_append_sheet(wb, infoWs, "Scoring Guide");
+
+        // Write and download the file
+        XLSX.writeFile(wb, "evaluation_template.xlsx");
     };
 
     // Update the upload completed UI to show score status
@@ -251,7 +270,15 @@ const ExcelEvaluationCreate: React.FC = () => {
                     <h3 className="font-medium text-indigo-800 mb-2">Instructions:</h3>
                     <ol className="list-decimal pl-5 text-gray-700 space-y-1">
                         <li>Download the Excel template below</li>
-                        <li>Fill in project names and <strong>evaluation scores</strong> (0-5 for each criterion)</li>
+                        <li>Fill in project names and <strong>evaluation scores</strong> with the following maximums:
+                            <ul className="list-disc pl-5 mt-1">
+                                <li>Implementation Demonstration: max 20 points (Faculty: 20, Reviewer: 20)</li>
+                                <li>Project Recognition: max 10 points (Faculty: 10, Reviewer: 10)</li>
+                                <li>Black Book Draft: max 5 points (Faculty: 5, Reviewer: 5)</li>
+                                <li>Presentation Quality: max 5 points (Faculty: 5, Reviewer: 5)</li>
+                                <li>Contribution & Punctuality: max 5 points (Faculty: 5, Reviewer: 5)</li>
+                            </ul>
+                        </li>
                         <li>You can include multiple projects in a single Excel file</li>
                         <li>Upload the completed Excel file with scores</li>
                         <li>Project-level evaluations will be applied to the entire team</li>

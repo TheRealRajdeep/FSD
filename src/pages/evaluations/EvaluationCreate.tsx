@@ -28,12 +28,22 @@ interface EvaluationFormData {
   rubricItems: RubricItem[];
 }
 
+// Add this default criteria array
+const defaultCriteria = [
+  { criterion: "Implementation Demonstration", description: "Overall implementation quality and functionality", maxScore: 20 },
+  { criterion: "Project Recognition", description: "Recognition of project's value and impact", maxScore: 10 },
+  { criterion: "Black Book Draft", description: "Quality and completeness of documentation", maxScore: 5 },
+  { criterion: "Presentation Quality", description: "Effectiveness of project presentation", maxScore: 5 },
+  { criterion: "Contribution & Punctuality", description: "Team member contribution and timeliness", maxScore: 5 }
+];
+
 const EvaluationCreate: React.FC = () => {
-  const { register, control, handleSubmit, formState: { errors } } = useForm<EvaluationFormData>({
+  const { register, control, handleSubmit, formState: { errors }, setValue, watch } = useForm<EvaluationFormData>({
     defaultValues: {
-      rubricItems: [
-        { criterion: '', description: '', maxScore: 5 } // Changed from 10 to 5
-      ]
+      projectId: "",
+      evaluationType: "milestone",
+      dueDate: new Date().toISOString().split("T")[0],
+      rubricItems: defaultCriteria,
     }
   });
   const { fields, append, remove } = useFieldArray({
@@ -215,16 +225,11 @@ const EvaluationCreate: React.FC = () => {
                         id={`rubricItems.${index}.maxScore`}
                         type="number"
                         min="1"
-                        max="5" // Changed from 100 to 5
                         {...register(`rubricItems.${index}.maxScore` as const, {
                           required: 'Max score is required',
                           min: {
                             value: 1,
                             message: 'Score must be at least 1'
-                          },
-                          max: {
-                            value: 5, // Changed from 100 to 5
-                            message: 'Score cannot exceed 5' // Updated error message
                           }
                         })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -232,6 +237,10 @@ const EvaluationCreate: React.FC = () => {
                       {errors.rubricItems?.[index]?.maxScore && (
                         <p className="mt-1 text-sm text-red-600">{errors.rubricItems[index]?.maxScore?.message}</p>
                       )}
+                      <p className="mt-1 text-xs text-gray-500">
+                        Faculty can give up to {watch(`rubricItems.${index}.maxScore`)} points and
+                        Reviewer can give up to {watch(`rubricItems.${index}.maxScore`)} points.
+                      </p>
                     </div>
                   </div>
                 </div>

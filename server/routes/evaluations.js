@@ -125,21 +125,49 @@ router.post(
           (key) => key !== "ProjectName"
         );
 
-        // Create default criteria if none found in Excel
+        // Update the default criteria array
         const defaultCriteria = [
-          "Code Quality",
-          "Design",
-          "Documentation",
-          "Presentation",
-          "Innovation",
+          { name: "Implementation Demonstration", maxScore: 20 },
+          { name: "Project Recognition", maxScore: 10 },
+          { name: "Black Book Draft", maxScore: 5 },
+          { name: "Presentation Quality", maxScore: 5 },
+          { name: "Contribution & Punctuality", maxScore: 5 },
         ];
 
         // Use criteria from Excel if available, otherwise use default criteria
         const finalCriteria =
-          criteriaColumns.length > 0 ? criteriaColumns : defaultCriteria;
+          criteriaColumns.length > 0
+            ? criteriaColumns
+                .map((col) => {
+                  // Match the column name to a default criterion if possible, excluding ProjectName, StudentName, SAPId
+                  if (
+                    col === "ProjectName" ||
+                    col === "StudentName" ||
+                    col === "SAPId"
+                  ) {
+                    return null;
+                  }
+
+                  const matchedCriterion = defaultCriteria.find(
+                    (c) => c.name.toLowerCase() === col.toLowerCase()
+                  );
+                  return {
+                    name: col,
+                    maxScore: matchedCriterion ? matchedCriterion.maxScore : 5, // Default to 5 if no match
+                  };
+                })
+                .filter(Boolean) // Remove null entries
+            : defaultCriteria;
 
         // Create rubric items with scores from Excel
-        const rubricItems = finalCriteria.map((criterion) => {
+        const rubricItems = finalCriteria.map((criterionObj) => {
+          const criterion = criterionObj.name;
+          const maxScore = criterionObj.maxScore;
+
+          // Update: Both faculty and reviewer can give full max score
+          const facultyMaxScore = maxScore; // Changed from maxScore/2
+          const reviewerMaxScore = maxScore; // Changed from maxScore/2
+
           // Initialize faculty score values
           const facultyScore = {
             value: null,
@@ -158,8 +186,8 @@ router.post(
           ) {
             const score = parseFloat(projectData[0][criterion]);
             if (!isNaN(score)) {
-              // Validate and set the score
-              const validScore = Math.min(Math.max(0, score), 5);
+              // Validate and set the score - cap at facultyMaxScore
+              const validScore = Math.min(Math.max(0, score), facultyMaxScore);
               facultyScore.value = validScore;
               facultyScore.comments = "Imported from Excel";
               facultyScore.locked = true; // Pre-filled scores are locked
@@ -169,7 +197,9 @@ router.post(
           return {
             criterion,
             description: `Evaluation for ${criterion}`,
-            maxScore: 5,
+            maxScore,
+            facultyMaxScore,
+            reviewerMaxScore,
             facultyScore,
           };
         });
@@ -306,10 +336,10 @@ router.put(
       const invalidScores = [];
       rubricScores.forEach((score) => {
         const rubricItem = evaluation.rubricItems.id(score.itemId);
-        if (rubricItem && score.value > rubricItem.maxScore) {
+        if (rubricItem && score.value > rubricItem.facultyMaxScore) {
           invalidScores.push({
             criterion: rubricItem.criterion,
-            maxScore: rubricItem.maxScore,
+            maxScore: rubricItem.facultyMaxScore,
             submittedScore: score.value,
           });
         }
@@ -399,10 +429,10 @@ router.put(
       const invalidScores = [];
       rubricScores.forEach((score) => {
         const rubricItem = evaluation.rubricItems.id(score.itemId);
-        if (rubricItem && score.value > rubricItem.maxScore) {
+        if (rubricItem && score.value > rubricItem.reviewerMaxScore) {
           invalidScores.push({
             criterion: rubricItem.criterion,
-            maxScore: rubricItem.maxScore,
+            maxScore: rubricItem.reviewerMaxScore,
             submittedScore: score.value,
           });
         }

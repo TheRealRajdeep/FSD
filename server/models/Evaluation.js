@@ -10,6 +10,18 @@ const RubricItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  facultyMaxScore: {
+    type: Number,
+    default: function () {
+      return this.maxScore; // Changed: Faculty can give full max score
+    },
+  },
+  reviewerMaxScore: {
+    type: Number,
+    default: function () {
+      return this.maxScore; // Changed: Reviewer can give full max score
+    },
+  },
   facultyScore: {
     value: {
       type: Number,

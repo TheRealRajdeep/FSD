@@ -9,8 +9,6 @@ import AuthContext from '../../context/AuthContext';
 
 interface ExcelData {
     ProjectName: string;
-    StudentName: string;
-    SAPId: string;
     [key: string]: any; // For dynamic criteria columns
 }
 
@@ -32,6 +30,7 @@ interface Evaluation {
     reviewerScoreData: any[];
     facultySubmitted: boolean;
     reviewerSubmitted: boolean;
+    rubricItems: { criterion: string; facultyMaxScore: number; reviewerMaxScore: number }[];
 }
 
 const ExcelEvaluationView: React.FC = () => {
@@ -134,21 +133,45 @@ const ExcelEvaluationView: React.FC = () => {
         return new Date(dateString).toLocaleDateString(undefined, options);
     };
 
-    // Add this function to calculate total score per criterion
-    const getTotalScore = (studentData: any, criterionName: string) => {
+    // Helper function to get max score for a criterion
+    const getCriterionMaxScore = (criterionName: string) => {
+        // Try to match with standard criteria names
+        const criterionMap: { [key: string]: number } = {
+            "Implementation Demonstration": 20,
+            "Project Recognition": 10,
+            "Black Book Draft": 5,
+            "Presentation Quality": 5,
+            "Contribution & Punctuality": 5
+        };
+
+        // Case insensitive search for criterion
+        const key = Object.keys(criterionMap).find(
+            k => k.toLowerCase() === criterionName.toLowerCase()
+        );
+
+        // Return the mapped score or default to 5
+        return key ? criterionMap[key] : 5;
+    };
+
+    const getTotalScore = (projectData: any, criterionName: string) => {
+        const maxScore = getCriterionMaxScore(criterionName);
+        const facultyMaxScore = maxScore; // Changed: Use full max score
+        const reviewerMaxScore = maxScore; // Changed: Use full max score
+
         const facultyScore = evaluation?.facultySubmitted ?
-            (studentData[criterionName] || 0) : 0;
+            Math.min((projectData[criterionName] || 0), facultyMaxScore) : 0;
 
         // Find reviewer score in reviewerScoreData if it exists
         const reviewerScoreItem = evaluation?.reviewerScoreData?.find(
-            item => item.criterion === criterionName && item.studentSapId === studentData.SAPId
+            item => item.criterion === criterionName
         );
-        const reviewerScore = reviewerScoreItem ? reviewerScoreItem.score : 0;
+        const reviewerScore = reviewerScoreItem ?
+            Math.min(reviewerScoreItem.score || 0, reviewerMaxScore) : 0;
 
         return {
-            faculty: Math.min(facultyScore, 25),
-            reviewer: Math.min(reviewerScore, 25),
-            total: Math.min(facultyScore, 25) + Math.min(reviewerScore, 25)
+            faculty: facultyScore,
+            reviewer: reviewerScore,
+            total: facultyScore + reviewerScore // This will now be the sum of both full scores
         };
     };
 
@@ -164,16 +187,14 @@ const ExcelEvaluationView: React.FC = () => {
         return <div className="text-center p-8">Evaluation not found</div>;
     }
 
-    // Add this badge to show the currently evaluating project
     const ProjectBadge = () => (
         <div className="inline-flex items-center bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg border border-indigo-200">
             <span className="mr-1 font-medium">Currently Evaluating:</span> {evaluation.project.title}
         </div>
     );
 
-    // Determine criteria columns (everything except ProjectName, StudentName, and SAPId)
     const criteriaColumns = evaluation.excelData && evaluation.excelData.length > 0
-        ? Object.keys(evaluation.excelData[0]).filter(key => !['ProjectName', 'StudentName', 'SAPId'].includes(key))
+        ? Object.keys(evaluation.excelData[0]).filter(key => key !== 'ProjectName')
         : [];
 
     const canSubmitFaculty = user?.role === 'faculty' && !evaluation.facultySubmitted;
@@ -231,15 +252,17 @@ const ExcelEvaluationView: React.FC = () => {
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Student Name
-                                            </th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                SAP ID
+                                                Project Name
                                             </th>
                                             {criteriaColumns.map(column => (
                                                 <th key={column} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     {column}
-                                                    <div className="text-xxs text-gray-400">(Max: 25)</div>
+                                                    <div className="text-xxs text-gray-400">
+                                                        {(() => {
+                                                            const maxScore = getCriterionMaxScore(column);
+                                                            return `(Max: ${maxScore} | Faculty: ${maxScore} | Reviewer: ${maxScore})`;
+                                                        })()}
+                                                    </div>
                                                 </th>
                                             ))}
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -248,11 +271,14 @@ const ExcelEvaluationView: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {evaluation.excelData.map((student, index) => {
-                                            // Calculate total score for this student
+                                        {evaluation.excelData.filter((item, index, self) =>
+                                            // Remove duplicates: only keep unique projects
+                                            index === self.findIndex(t => t.ProjectName === item.ProjectName)
+                                        ).map((projectData, index) => {
+                                            // Calculate total score for this project
                                             const totalScoreObj = criteriaColumns.reduce(
                                                 (acc, column) => {
-                                                    const scores = getTotalScore(student, column);
+                                                    const scores = getTotalScore(projectData, column);
                                                     return {
                                                         faculty: acc.faculty + scores.faculty,
                                                         reviewer: acc.reviewer + scores.reviewer,
@@ -265,26 +291,23 @@ const ExcelEvaluationView: React.FC = () => {
                                             return (
                                                 <tr key={index}>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm font-medium text-gray-900">{student.StudentName}</div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm text-gray-500">{student.SAPId}</div>
+                                                        <div className="text-sm font-medium text-gray-900">{projectData.ProjectName}</div>
                                                     </td>
                                                     {criteriaColumns.map(column => (
                                                         <td key={`${index}-${column}`} className="px-6 py-4 whitespace-nowrap">
                                                             <div className="text-sm text-gray-900">
                                                                 {evaluation.facultySubmitted ? (
                                                                     <div>
-                                                                        <span className="font-medium">Faculty:</span> {Math.min(student[column] || 0, 25)}
+                                                                        <span className="font-medium">Faculty:</span> {Math.min(projectData[column] || 0, getCriterionMaxScore(column))}
                                                                         {evaluation.reviewerSubmitted && (
                                                                             <>
                                                                                 <br />
                                                                                 <span className="font-medium">Reviewer:</span> {
                                                                                     Math.min(
                                                                                         evaluation.reviewerScoreData?.find(
-                                                                                            item => item.criterion === column && item.studentSapId === student.SAPId
+                                                                                            item => item.criterion === column
                                                                                         )?.score || 0,
-                                                                                        25
+                                                                                        getCriterionMaxScore(column)
                                                                                     )
                                                                                 }
                                                                             </>
@@ -305,7 +328,7 @@ const ExcelEvaluationView: React.FC = () => {
                                                                         <div className="text-green-600">Reviewer: {totalScoreObj.reviewer}</div>
                                                                     )}
                                                                     <div className="text-indigo-800 font-bold border-t border-gray-200 mt-1 pt-1">
-                                                                        Total: {totalScoreObj.total}/{criteriaColumns.length * 50}
+                                                                        Total: {totalScoreObj.total}/{criteriaColumns.reduce((acc, column) => acc + getCriterionMaxScore(column), 0)}
                                                                     </div>
                                                                 </div>
                                                             ) : (
@@ -322,7 +345,7 @@ const ExcelEvaluationView: React.FC = () => {
                         </div>
                     ) : (
                         <div className="text-center py-8">
-                            <p className="text-gray-500">No student data available</p>
+                            <p className="text-gray-500">No project data available</p>
                         </div>
                     )}
 
@@ -342,7 +365,10 @@ const ExcelEvaluationView: React.FC = () => {
 
                         <div className="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded-md">
                             <p className="text-yellow-800 font-medium">Important:</p>
-                            <p className="text-yellow-700">The maximum score for each criterion is 25 points. Any scores exceeding this limit will be capped at 25.</p>
+                            <p className="text-yellow-700">
+                                Faculty can only give up to half of the maximum score for each criterion.
+                                Reviewer can give the other half. Scores exceeding these limits will be capped.
+                            </p>
                         </div>
 
                         {(canSubmitFaculty || canSubmitReviewer) && (

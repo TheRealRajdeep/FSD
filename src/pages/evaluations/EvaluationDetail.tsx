@@ -12,6 +12,8 @@ interface RubricItem {
   criterion: string;
   description: string;
   maxScore: number;
+  facultyMaxScore: number;
+  reviewerMaxScore: number;
   facultyScore: {
     value: number | null;
     submittedBy: any;
@@ -92,7 +94,7 @@ const EvaluationDetail: React.FC = () => {
                   row[item.criterion] !== "") {
                   const score: number = parseFloat(row[item.criterion]);
                   if (!isNaN(score)) {
-                    const validScore: number = Math.min(Math.max(0, score), item.maxScore);
+                    const validScore: number = Math.min(Math.max(0, score), item.facultyMaxScore);
                     totalScore += validScore;
                     count++;
                   }
@@ -129,7 +131,11 @@ const EvaluationDetail: React.FC = () => {
   const handleScoreChange = (itemId: string, value: number) => {
     const rubricItem = evaluation?.rubricItems.find(item => item._id === itemId);
     if (rubricItem) {
-      const validValue = Math.min(Math.max(0, value), rubricItem.maxScore);
+      const maxAllowed = user?.role === 'faculty' ?
+        rubricItem.facultyMaxScore :
+        rubricItem.reviewerMaxScore;
+
+      const validValue = Math.min(Math.max(0, value), maxAllowed);
       setScores(prev => ({ ...prev, [itemId]: validValue }));
     } else {
       setScores(prev => ({ ...prev, [itemId]: value }));
@@ -142,8 +148,12 @@ const EvaluationDetail: React.FC = () => {
 
       evaluation?.rubricItems.forEach(item => {
         const score = scores[item._id];
-        if (score > item.maxScore) {
-          invalidScores.push(`${item.criterion}: ${score} (max is ${item.maxScore})`);
+        const maxAllowed = user?.role === 'faculty' ?
+          item.facultyMaxScore :
+          item.reviewerMaxScore;
+
+        if (score > maxAllowed) {
+          invalidScores.push(`${item.criterion}: ${score} (max is ${maxAllowed})`);
         }
       });
 
@@ -197,11 +207,12 @@ const EvaluationDetail: React.FC = () => {
     }, 0);
   };
 
-  const calculateMaxScore = () => {
+  const calculateMaxScore = (type: 'faculty' | 'reviewer') => {
     if (!evaluation) return 0;
 
     return evaluation.rubricItems.reduce((total, item) => {
-      return total + item.maxScore;
+      const maxScore = type === 'faculty' ? item.facultyMaxScore : item.reviewerMaxScore;
+      return total + maxScore;
     }, 0);
   };
 
@@ -387,10 +398,10 @@ const EvaluationDetail: React.FC = () => {
                       Max Score
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Faculty Score
+                      Faculty Score (Max)
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Reviewer Score
+                      Reviewer Score (Max)
                     </th>
                   </tr>
                 </thead>
@@ -409,19 +420,19 @@ const EvaluationDetail: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {item.facultyScore.locked ? (
                           <div className="text-sm font-medium text-gray-900">
-                            {item.facultyScore.value} / {item.maxScore}
+                            {item.facultyScore.value} / {item.facultyMaxScore}
                           </div>
                         ) : canSubmitFaculty ? (
                           <div className="flex items-center">
                             <input
                               type="number"
                               min="0"
-                              max={item.maxScore}
+                              max={item.facultyMaxScore}
                               value={scores[item._id]}
                               onChange={(e) => handleScoreChange(item._id, parseInt(e.target.value))}
                               className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
-                            <span className="ml-2 text-xs text-gray-500">/ {item.maxScore}</span>
+                            <span className="ml-2 text-xs text-gray-500">/ {item.facultyMaxScore}</span>
                           </div>
                         ) : (
                           <div className="text-sm text-gray-500">Not submitted</div>
@@ -430,19 +441,19 @@ const EvaluationDetail: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {item.reviewerScore.locked ? (
                           <div className="text-sm font-medium text-gray-900">
-                            {item.reviewerScore.value} / {item.maxScore}
+                            {item.reviewerScore.value} / {item.reviewerMaxScore}
                           </div>
                         ) : canSubmitReviewer ? (
                           <div className="flex items-center">
                             <input
                               type="number"
                               min="0"
-                              max={item.maxScore}
+                              max={item.reviewerMaxScore}
                               value={scores[item._id]}
                               onChange={(e) => handleScoreChange(item._id, parseInt(e.target.value))}
                               className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
-                            <span className="ml-2 text-xs text-gray-500">/ {item.maxScore}</span>
+                            <span className="ml-2 text-xs text-gray-500">/ {item.reviewerMaxScore}</span>
                           </div>
                         ) : (
                           <div className="text-sm text-gray-500">Not submitted</div>
@@ -457,16 +468,16 @@ const EvaluationDetail: React.FC = () => {
                       <div className="text-sm font-medium text-gray-900">Total Score:</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{calculateMaxScore()}</div>
+                      <div className="text-sm font-medium text-gray-900">{calculateMaxScore('faculty') + calculateMaxScore('reviewer')}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {evaluation.facultySubmitted ? `${calculateTotalScore('faculty')} / ${calculateMaxScore()}` : 'Pending'}
+                        {evaluation.facultySubmitted ? `${calculateTotalScore('faculty')} / ${calculateMaxScore('faculty')}` : 'Pending'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {evaluation.reviewerSubmitted ? `${calculateTotalScore('reviewer')} / ${calculateMaxScore()}` : 'Pending'}
+                        {evaluation.reviewerSubmitted ? `${calculateTotalScore('reviewer')} / ${calculateMaxScore('reviewer')}` : 'Pending'}
                       </div>
                     </td>
                   </tr>
