@@ -4,7 +4,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { utils, write, read } from 'xlsx';
 import { saveAs } from 'file-saver';
-import { ClipboardList, BookOpen, Users, Calendar, Check, X, Download, Upload } from 'lucide-react';
+import { ClipboardList, BookOpen, Users, Calendar, Check, X, Download, Upload, AlertCircle, Info } from 'lucide-react';
 import AuthContext from '../../context/AuthContext';
 
 interface RubricItem {
@@ -16,14 +16,12 @@ interface RubricItem {
     value: number | null;
     submittedBy: any;
     submittedAt: string;
-    comments: string;
     locked: boolean;
   };
   reviewerScore: {
     value: number | null;
     submittedBy: any;
     submittedAt: string;
-    comments: string;
     locked: boolean;
   };
 }
@@ -39,6 +37,7 @@ interface Evaluation {
     _id: string;
     name: string;
     members: any[];
+    leader?: any;
   };
   evaluationType: string;
   dueDate: string;
@@ -46,6 +45,8 @@ interface Evaluation {
   rubricItems: RubricItem[];
   facultySubmitted: boolean;
   reviewerSubmitted: boolean;
+  excelData?: any[];
+  hasPrefilledScores?: boolean;
 }
 
 interface ExcelRow {
@@ -53,7 +54,6 @@ interface ExcelRow {
   Criterion: string;
   MaxScore: number;
   Score: number;
-  Comments: string;
 }
 
 const EvaluationDetail: React.FC = () => {
@@ -63,8 +63,8 @@ const EvaluationDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [scores, setScores] = useState<{ [key: string]: number }>({});
-  const [comments, setComments] = useState<{ [key: string]: string }>({});
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [evaluationType, setEvaluationType] = useState<string>('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,23 +73,46 @@ const EvaluationDetail: React.FC = () => {
         setLoading(true);
         const res = await axios.get(`/api/evaluations/${id}`);
         setEvaluation(res.data);
+        setEvaluationType(res.data.evaluationType || 'milestone');
 
-        // Initialize scores and comments
         const initialScores: { [key: string]: number } = {};
-        const initialComments: { [key: string]: string } = {};
+
+        const excelData = res.data.excelData;
+        const hasPrefilledScores = res.data.hasPrefilledScores;
 
         res.data.rubricItems.forEach((item: RubricItem) => {
           if (user?.role === 'faculty') {
-            initialScores[item._id] = item.facultyScore.value || 0;
-            initialComments[item._id] = item.facultyScore.comments || '';
+            if (hasPrefilledScores && excelData && excelData.length > 0) {
+              let totalScore = 0;
+              let count = 0;
+
+              excelData.forEach((row: Record<string, any>) => {
+                if (row[item.criterion] !== undefined &&
+                  row[item.criterion] !== null &&
+                  row[item.criterion] !== "") {
+                  const score: number = parseFloat(row[item.criterion]);
+                  if (!isNaN(score)) {
+                    const validScore: number = Math.min(Math.max(0, score), item.maxScore);
+                    totalScore += validScore;
+                    count++;
+                  }
+                }
+              });
+
+              if (count > 0) {
+                initialScores[item._id] = Math.round((totalScore / count) * 10) / 10;
+              } else {
+                initialScores[item._id] = item.facultyScore.value || 0;
+              }
+            } else {
+              initialScores[item._id] = item.facultyScore.value || 0;
+            }
           } else if (user?.role === 'reviewer') {
             initialScores[item._id] = item.reviewerScore.value || 0;
-            initialComments[item._id] = item.reviewerScore.comments || '';
           }
         });
 
         setScores(initialScores);
-        setComments(initialComments);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching evaluation:', error);
@@ -104,27 +127,48 @@ const EvaluationDetail: React.FC = () => {
   }, [id, user]);
 
   const handleScoreChange = (itemId: string, value: number) => {
-    setScores(prev => ({ ...prev, [itemId]: value }));
-  };
-
-  const handleCommentChange = (itemId: string, value: string) => {
-    setComments(prev => ({ ...prev, [itemId]: value }));
+    const rubricItem = evaluation?.rubricItems.find(item => item._id === itemId);
+    if (rubricItem) {
+      const validValue = Math.min(Math.max(0, value), rubricItem.maxScore);
+      setScores(prev => ({ ...prev, [itemId]: validValue }));
+    } else {
+      setScores(prev => ({ ...prev, [itemId]: value }));
+    }
   };
 
   const handleSubmit = async () => {
     try {
+      const invalidScores: string[] = [];
+
+      evaluation?.rubricItems.forEach(item => {
+        const score = scores[item._id];
+        if (score > item.maxScore) {
+          invalidScores.push(`${item.criterion}: ${score} (max is ${item.maxScore})`);
+        }
+      });
+
+      if (invalidScores.length > 0) {
+        toast.error(`Some scores exceed maximum allowed values: ${invalidScores.join(', ')}`);
+        return;
+      }
+
       setSubmitting(true);
 
       const rubricScores = evaluation?.rubricItems.map(item => ({
         itemId: item._id,
-        value: scores[item._id],
-        comments: comments[item._id]
+        value: scores[item._id]
       }));
 
       if (user?.role === 'faculty') {
-        await axios.put(`/api/evaluations/${id}/faculty-score`, { rubricScores });
+        await axios.put(`/api/evaluations/${id}/faculty-score`, {
+          rubricScores,
+          evaluationType: evaluationType
+        });
       } else if (user?.role === 'reviewer') {
-        await axios.put(`/api/evaluations/${id}/reviewer-score`, { rubricScores });
+        await axios.put(`/api/evaluations/${id}/reviewer-score`, {
+          rubricScores,
+          evaluationType: evaluationType
+        });
       }
 
       toast.success('Evaluation submitted successfully!');
@@ -135,60 +179,8 @@ const EvaluationDetail: React.FC = () => {
     }
   };
 
-  const downloadExcelTemplate = () => {
-    if (!evaluation) return;
-
-    const rows: ExcelRow[] = evaluation.rubricItems.map(item => ({
-      CriterionId: item._id,
-      Criterion: item.criterion,
-      MaxScore: item.maxScore,
-      Score: user?.role === 'faculty' ? (item.facultyScore.value || 0) : (item.reviewerScore.value || 0),
-      Comments: user?.role === 'faculty' ? (item.facultyScore.comments || '') : (item.reviewerScore.comments || '')
-    }));
-
-    const ws = utils.json_to_sheet(rows);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, 'Evaluation');
-
-    const excelBuffer = write(wb, { bookType: 'xlsx', type: 'array' });
-    const fileName = `evaluation-${evaluation._id}-${user?.role}.xlsx`;
-
-    saveAs(new Blob([excelBuffer]), fileName);
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = read(data, { type: 'array' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: ExcelRow[] = utils.sheet_to_json(worksheet);
-
-        const rubricScores = rows.map(row => ({
-          itemId: row.CriterionId,
-          value: row.Score,
-          comments: row.Comments
-        }));
-
-        setSubmitting(true);
-        if (user?.role === 'faculty') {
-          await axios.put(`/api/evaluations/${id}/faculty-score`, { rubricScores });
-        } else if (user?.role === 'reviewer') {
-          await axios.put(`/api/evaluations/${id}/reviewer-score`, { rubricScores });
-        }
-
-        toast.success('Evaluation scores uploaded successfully!');
-        navigate('/evaluations');
-      } catch (error) {
-        console.error('Error processing Excel file:', error);
-        toast.error('Failed to process Excel file');
-      }
-    };
-    reader.readAsArrayBuffer(file);
+  const handleEvaluationTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setEvaluationType(event.target.value);
   };
 
   const formatDate = (dateString: string) => {
@@ -211,6 +203,68 @@ const EvaluationDetail: React.FC = () => {
     return evaluation.rubricItems.reduce((total, item) => {
       return total + item.maxScore;
     }, 0);
+  };
+
+  const getExcelScoresPreview = () => {
+    if (!evaluation || !evaluation.hasPrefilledScores) {
+      return null;
+    }
+
+    const criteria = evaluation.rubricItems.map(item => item.criterion);
+
+    return (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-2">
+          Imported Project Scores from Excel
+        </h3>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <p className="text-sm text-gray-700 mb-3">
+            Project-level scores were imported from your Excel file. These scores will be applied to the entire team's project.
+          </p>
+
+          <div className="overflow-x-auto mt-2">
+            <table className="min-w-full divide-y divide-gray-200 border">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Project</th>
+                  {criteria.map(criterion => (
+                    <th key={criterion} className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                      {criterion}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                <tr className="text-sm">
+                  <td className="px-3 py-2 whitespace-nowrap font-medium">
+                    {evaluation.project.title}
+                  </td>
+                  {criteria.map(criterion => {
+                    const rubricItem = evaluation.rubricItems.find(item => item.criterion === criterion);
+                    return (
+                      <td key={criterion} className="px-3 py-2 whitespace-nowrap">
+                        {rubricItem && rubricItem.facultyScore.value !== null ? (
+                          <span className={rubricItem.facultyScore.value > 5 ? 'text-red-600 font-bold' : ''}>
+                            {rubricItem.facultyScore.value}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 text-sm text-gray-600 flex items-center">
+            <Info className="h-4 w-4 mr-2 text-blue-500" />
+            Scores are applied at the project level for the entire team
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -255,6 +309,11 @@ const EvaluationDetail: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-3">
+              {evaluation.evaluationType === 'excel-based' && (
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                  Excel-Based
+                </span>
+              )}
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                 evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
                   evaluation.status === 'reviewer-evaluated' ? 'bg-purple-100 text-purple-800' :
@@ -265,36 +324,51 @@ const EvaluationDetail: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <BookOpen className="h-5 w-5 text-indigo-600 mr-2" />
-                <h3 className="text-lg font-medium text-gray-800">Project</h3>
-              </div>
-              <p className="font-medium mb-2">{evaluation.project.title}</p>
-              <p className="text-gray-600 text-sm line-clamp-3">{evaluation.project.description}</p>
-            </div>
+          {(canSubmitFaculty || canSubmitReviewer) && (
+            <div className="mb-6">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <label htmlFor="evaluationType" className="block text-sm font-medium text-gray-700 mb-2">
+                  Evaluation Type:
+                </label>
+                <div className="flex items-center space-x-4">
+                  <select
+                    id="evaluationType"
+                    value={evaluationType}
+                    onChange={handleEvaluationTypeChange}
+                    className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="milestone">Milestone Evaluation</option>
+                    <option value="final">Final Evaluation</option>
+                    {evaluation.evaluationType === 'excel-based' && (
+                      <option value="excel-based">Excel-Based Evaluation</option>
+                    )}
+                  </select>
 
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <Users className="h-5 w-5 text-indigo-600 mr-2" />
-                <h3 className="text-lg font-medium text-gray-800">Team</h3>
+                  {evaluationType !== evaluation.evaluationType && (
+                    <span className="text-amber-600 text-sm flex items-center">
+                      <AlertCircle className="h-4 w-4 mr-1" />
+                      Changed from original type
+                    </span>
+                  )}
+                </div>
               </div>
-              <p className="font-medium mb-2">{evaluation.team.name}</p>
-              <p className="text-gray-600 text-sm">{evaluation.team.members.length} Members</p>
             </div>
+          )}
 
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <Calendar className="h-5 w-5 text-indigo-600 mr-2" />
-                <h3 className="text-lg font-medium text-gray-800">Due Date</h3>
+          {!canSubmitFaculty && !canSubmitReviewer && (
+            <div className="mb-6">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="text-sm font-medium text-gray-700">
+                  Evaluation Type:
+                  <span className="ml-2 text-gray-900 capitalize">
+                    {evaluation.evaluationType.replace(/-/g, ' ')}
+                  </span>
+                </div>
               </div>
-              <p className="font-medium">{formatDate(evaluation.dueDate)}</p>
-              <p className="text-gray-600 text-sm mt-2">
-                {new Date(evaluation.dueDate) < new Date() ? 'Overdue' : 'Upcoming'}
-              </p>
             </div>
-          </div>
+          )}
+
+          {evaluation.hasPrefilledScores && getExcelScoresPreview()}
 
           <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Evaluation Rubric</h3>
@@ -336,14 +410,9 @@ const EvaluationDetail: React.FC = () => {
                         {item.facultyScore.locked ? (
                           <div className="text-sm font-medium text-gray-900">
                             {item.facultyScore.value} / {item.maxScore}
-                            {item.facultyScore.comments && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Comment: {item.facultyScore.comments}
-                              </div>
-                            )}
                           </div>
                         ) : canSubmitFaculty ? (
-                          <div className="space-y-2">
+                          <div className="flex items-center">
                             <input
                               type="number"
                               min="0"
@@ -352,15 +421,7 @@ const EvaluationDetail: React.FC = () => {
                               onChange={(e) => handleScoreChange(item._id, parseInt(e.target.value))}
                               className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
-                            <div>
-                              <textarea
-                                placeholder="Add comments..."
-                                value={comments[item._id]}
-                                onChange={(e) => handleCommentChange(item._id, e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                rows={2}
-                              ></textarea>
-                            </div>
+                            <span className="ml-2 text-xs text-gray-500">/ {item.maxScore}</span>
                           </div>
                         ) : (
                           <div className="text-sm text-gray-500">Not submitted</div>
@@ -370,14 +431,9 @@ const EvaluationDetail: React.FC = () => {
                         {item.reviewerScore.locked ? (
                           <div className="text-sm font-medium text-gray-900">
                             {item.reviewerScore.value} / {item.maxScore}
-                            {item.reviewerScore.comments && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Comment: {item.reviewerScore.comments}
-                              </div>
-                            )}
                           </div>
                         ) : canSubmitReviewer ? (
-                          <div className="space-y-2">
+                          <div className="flex items-center">
                             <input
                               type="number"
                               min="0"
@@ -386,15 +442,7 @@ const EvaluationDetail: React.FC = () => {
                               onChange={(e) => handleScoreChange(item._id, parseInt(e.target.value))}
                               className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
-                            <div>
-                              <textarea
-                                placeholder="Add comments..."
-                                value={comments[item._id]}
-                                onChange={(e) => handleCommentChange(item._id, e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                rows={2}
-                              ></textarea>
-                            </div>
+                            <span className="ml-2 text-xs text-gray-500">/ {item.maxScore}</span>
                           </div>
                         ) : (
                           <div className="text-sm text-gray-500">Not submitted</div>
@@ -457,45 +505,6 @@ const EvaluationDetail: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Excel-based Evaluation - Only visible to faculty */}
-      {user?.role === 'faculty' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-xl font-bold mb-4">Excel-based Evaluation</h3>
-
-          <div className="flex flex-col md:flex-row gap-4">
-            <button
-              onClick={downloadExcelTemplate}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-            >
-              <Download className="w-5 h-5 mr-2" />
-              Download Excel Template
-            </button>
-
-            <div className="relative">
-              <input
-                type="file"
-                accept=".xlsx"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="excel-upload"
-              />
-              <label
-                htmlFor="excel-upload"
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
-              >
-                <Upload className="w-5 h-5 mr-2" />
-                Upload Filled Template
-              </label>
-            </div>
-          </div>
-
-          <p className="mt-4 text-sm text-gray-600">
-            Note: Download the template, fill in your scores and comments, then upload the completed file.
-            As faculty, you can only modify faculty scores.
-          </p>
-        </div>
-      )}
     </div>
   );
 };

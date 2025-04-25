@@ -32,7 +32,7 @@ const EvaluationCreate: React.FC = () => {
   const { register, control, handleSubmit, formState: { errors } } = useForm<EvaluationFormData>({
     defaultValues: {
       rubricItems: [
-        { criterion: '', description: '', maxScore: 10 }
+        { criterion: '', description: '', maxScore: 5 } // Changed from 10 to 5
       ]
     }
   });
@@ -40,7 +40,7 @@ const EvaluationCreate: React.FC = () => {
     control,
     name: 'rubricItems'
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -86,7 +86,7 @@ const EvaluationCreate: React.FC = () => {
           <ClipboardList className="h-8 w-8 text-indigo-600 mr-3" />
           <h1 className="text-2xl font-bold text-gray-800">Create New Evaluation</h1>
         </div>
-        
+
         {loadingProjects ? (
           <div className="flex justify-center items-center h-24">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
@@ -113,7 +113,7 @@ const EvaluationCreate: React.FC = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.projectId.message}</p>
               )}
             </div>
-            
+
             <div>
               <label htmlFor="evaluationType" className="block text-sm font-medium text-gray-700 mb-1">
                 Evaluation Type
@@ -131,7 +131,7 @@ const EvaluationCreate: React.FC = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.evaluationType.message}</p>
               )}
             </div>
-            
+
             <div>
               <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">
                 Due Date
@@ -147,20 +147,20 @@ const EvaluationCreate: React.FC = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.dueDate.message}</p>
               )}
             </div>
-            
+
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-800">Rubric Items</h3>
                 <button
                   type="button"
-                  onClick={() => append({ criterion: '', description: '', maxScore: 10 })}
+                  onClick={() => append({ criterion: '', description: '', maxScore: 5 })}
                   className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-md hover:bg-indigo-200 transition flex items-center"
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Add Item
                 </button>
               </div>
-              
+
               {fields.map((field, index) => (
                 <div key={field.id} className="bg-gray-50 p-4 rounded-lg mb-4">
                   <div className="flex justify-between items-start mb-3">
@@ -174,7 +174,7 @@ const EvaluationCreate: React.FC = () => {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <div>
                       <label htmlFor={`rubricItems.${index}.criterion`} className="block text-sm font-medium text-gray-700 mb-1">
@@ -183,8 +183,8 @@ const EvaluationCreate: React.FC = () => {
                       <input
                         id={`rubricItems.${index}.criterion`}
                         type="text"
-                        {...register(`rubricItems.${index}.criterion` as const, { 
-                          required: 'Criterion is required' 
+                        {...register(`rubricItems.${index}.criterion` as const, {
+                          required: 'Criterion is required'
                         })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         placeholder="e.g., Technical Implementation"
@@ -193,7 +193,7 @@ const EvaluationCreate: React.FC = () => {
                         <p className="mt-1 text-sm text-red-600">{errors.rubricItems[index]?.criterion?.message}</p>
                       )}
                     </div>
-                    
+
                     <div>
                       <label htmlFor={`rubricItems.${index}.description`} className="block text-sm font-medium text-gray-700 mb-1">
                         Description
@@ -206,7 +206,7 @@ const EvaluationCreate: React.FC = () => {
                         placeholder="Describe what this criterion evaluates"
                       ></textarea>
                     </div>
-                    
+
                     <div>
                       <label htmlFor={`rubricItems.${index}.maxScore`} className="block text-sm font-medium text-gray-700 mb-1">
                         Maximum Score
@@ -215,16 +215,16 @@ const EvaluationCreate: React.FC = () => {
                         id={`rubricItems.${index}.maxScore`}
                         type="number"
                         min="1"
-                        max="100"
-                        {...register(`rubricItems.${index}.maxScore` as const, { 
+                        max="5" // Changed from 100 to 5
+                        {...register(`rubricItems.${index}.maxScore` as const, {
                           required: 'Max score is required',
                           min: {
                             value: 1,
                             message: 'Score must be at least 1'
                           },
                           max: {
-                            value: 100,
-                            message: 'Score cannot exceed 100'
+                            value: 5, // Changed from 100 to 5
+                            message: 'Score cannot exceed 5' // Updated error message
                           }
                         })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -237,7 +237,7 @@ const EvaluationCreate: React.FC = () => {
                 </div>
               ))}
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <button
                 type="submit"
@@ -246,7 +246,7 @@ const EvaluationCreate: React.FC = () => {
               >
                 {loading ? 'Creating...' : 'Create Evaluation'}
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => navigate('/evaluations')}
