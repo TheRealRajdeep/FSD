@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { ClipboardList, Search, Plus, Filter } from 'lucide-react';
+import { ClipboardList, Search, Plus, Filter, File } from 'lucide-react';
 import AuthContext from '../../context/AuthContext';
 
 interface Evaluation {
@@ -51,20 +51,20 @@ const EvaluationList: React.FC = () => {
   useEffect(() => {
     // Apply filters
     let filtered = evaluations;
-    
+
     // Search filter
     if (searchTerm.trim() !== '') {
-      filtered = filtered.filter(evaluation => 
+      filtered = filtered.filter(evaluation =>
         evaluation.project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         evaluation.team.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(evaluation => evaluation.status === statusFilter);
     }
-    
+
     // Role-specific filters
     if (user?.role === 'faculty') {
       if (statusFilter === 'pending-faculty') {
@@ -72,13 +72,13 @@ const EvaluationList: React.FC = () => {
       }
     } else if (user?.role === 'reviewer') {
       if (statusFilter === 'pending-reviewer') {
-        filtered = filtered.filter(evaluation => 
-          !evaluation.reviewerSubmitted && 
+        filtered = filtered.filter(evaluation =>
+          !evaluation.reviewerSubmitted &&
           (evaluation.status === 'faculty-evaluated' || evaluation.status === 'pending')
         );
       }
     }
-    
+
     setFilteredEvaluations(filtered);
   }, [searchTerm, statusFilter, evaluations, user]);
 
@@ -102,7 +102,7 @@ const EvaluationList: React.FC = () => {
           <ClipboardList className="h-8 w-8 text-indigo-600 mr-3" />
           <h1 className="text-2xl font-bold text-gray-800">Evaluations</h1>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
           <div className="relative">
             <input
@@ -114,7 +114,7 @@ const EvaluationList: React.FC = () => {
             />
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
-          
+
           <div className="relative">
             <select
               value={statusFilter}
@@ -135,25 +135,43 @@ const EvaluationList: React.FC = () => {
             </select>
             <Filter className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
-          
+
           {user?.role === 'faculty' && (
-            <Link
-              to="/evaluations/create"
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition flex items-center justify-center"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Create Evaluation
-            </Link>
+            <div className="flex space-x-4">
+              <Link
+                to="/evaluations/create"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition inline-flex items-center"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Create Evaluation
+              </Link>
+
+              <Link
+                to="/evaluations/excel-create"
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition inline-flex items-center"
+              >
+                <File className="h-5 w-5 mr-2" />
+                Excel-Based Evaluation
+              </Link>
+
+              <Link
+                to="/evaluations/excel-projects"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition inline-flex items-center"
+              >
+                <ClipboardList className="h-5 w-5 mr-2" />
+                Multi-Project Evaluations
+              </Link>
+            </div>
           )}
         </div>
       </div>
-      
+
       {filteredEvaluations.length === 0 ? (
         <div className="bg-white rounded-xl shadow-md p-8 text-center">
           <h3 className="text-xl font-medium text-gray-800 mb-2">No Evaluations Found</h3>
           <p className="text-gray-600 mb-6">
-            {searchTerm || statusFilter !== 'all' 
-              ? 'No evaluations match your search criteria.' 
+            {searchTerm || statusFilter !== 'all'
+              ? 'No evaluations match your search criteria.'
               : 'There are no evaluations available at the moment.'}
           </p>
           {user?.role === 'faculty' && (
@@ -202,19 +220,26 @@ const EvaluationList: React.FC = () => {
                       <div className="text-sm text-gray-900">{evaluation.team.name}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 capitalize">{evaluation.evaluationType}</div>
+                      <div className="text-sm text-gray-900 capitalize">
+                        {evaluation.evaluationType.replace('-', ' ')}
+                        {evaluation.evaluationType === 'excel-based' && (
+                          <span className="inline-flex items-center ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Excel
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{formatDate(evaluation.dueDate)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${evaluation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                         evaluation.status === 'faculty-evaluated' ? 'bg-blue-100 text-blue-800' :
-                        evaluation.status === 'reviewer-evaluated' ? 'bg-purple-100 text-purple-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {evaluation.status.replace('-', ' ').toUpperCase()}
+                          evaluation.status === 'reviewer-evaluated' ? 'bg-purple-100 text-purple-800' :
+                            evaluation.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              'bg-gray-100 text-gray-800'
+                        }`}>
+                        {evaluation.status.replace(/-/g, ' ').toUpperCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -222,9 +247,9 @@ const EvaluationList: React.FC = () => {
                         to={`/evaluations/${evaluation._id}`}
                         className="text-indigo-600 hover:text-indigo-900"
                       >
-                        {user?.role === 'faculty' && !evaluation.facultySubmitted ? 'Evaluate' : 
-                         user?.role === 'reviewer' && !evaluation.reviewerSubmitted ? 'Review' : 
-                         'View'}
+                        {user?.role === 'faculty' && !evaluation.facultySubmitted ? 'Evaluate' :
+                          user?.role === 'reviewer' && !evaluation.reviewerSubmitted ? 'Review' :
+                            'View'}
                       </Link>
                     </td>
                   </tr>

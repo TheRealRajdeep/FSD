@@ -23,6 +23,9 @@ import ProjectDetail from './pages/projects/ProjectDetail';
 import EvaluationCreate from './pages/evaluations/EvaluationCreate';
 import EvaluationDetail from './pages/evaluations/EvaluationDetail';
 import EvaluationList from './pages/evaluations/EvaluationList';
+import ExcelEvaluationCreate from './pages/evaluations/ExcelEvaluationCreate';
+import ExcelEvaluationView from './pages/evaluations/ExcelEvaluationView';
+import MultiProjectEvaluations from './pages/evaluations/MultiProjectEvaluations';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 
@@ -100,6 +103,24 @@ function App() {
               <Route path="/evaluations/:id" element={
                 <PrivateRoute>
                   <EvaluationDetail />
+                </PrivateRoute>
+              } />
+
+              <Route path="/evaluations/excel-create" element={
+                <PrivateRoute roles={['faculty']}>
+                  <ExcelEvaluationCreate />
+                </PrivateRoute>
+              } />
+
+              <Route path="/evaluations/excel/:id" element={
+                <PrivateRoute roles={['faculty', 'reviewer']}>
+                  <ExcelEvaluationView />
+                </PrivateRoute>
+              } />
+
+              <Route path="/evaluations/excel-projects" element={
+                <PrivateRoute roles={['faculty', 'reviewer']}>
+                  <MultiProjectEvaluations />
                 </PrivateRoute>
               } />
 
